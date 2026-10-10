@@ -9,7 +9,7 @@ import { inferSamplingRate, type CsvPreview } from '@/io/csv';
 import { ImportError, UNIT_LABELS, type Recording, type SignalUnits } from '@/io/types';
 import { checkRecording, samplingRateError } from '@/io/validate';
 import { useRecordingStore } from '@/store/recording';
-import { extractCsvInWorker } from '@/workers/client';
+import { runInWorker } from '@/workers/client';
 import { estimateFromHead, extractOptions } from './csvDefaults';
 
 /** Above this spread of sample intervals, treating the signal as evenly sampled is questionable. */
@@ -56,10 +56,10 @@ export function CsvImportForm({ fileName, text, preview, onCancel }: CsvImportFo
     setBusy(true);
     setError(null);
     try {
-      const columns = await extractCsvInWorker(
+      const columns = await runInWorker('extractCsv', {
         text,
-        extractOptions(preview, timeColumn, signalColumn),
-      );
+        options: extractOptions(preview, timeColumn, signalColumn),
+      });
       const warnings = checkRecording(columns.signal, fs, kind);
       if (columns.interpolatedCount > 0) {
         warnings.push(

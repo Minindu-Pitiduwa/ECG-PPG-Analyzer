@@ -6,7 +6,8 @@
 /*
  * Plot colors follow the Okabe–Ito palette, which stays distinguishable under
  * the common forms of color blindness: blue for the signal, orange for beats,
- * vermillion for flagged beats, grey for low-quality segments.
+ * vermillion for flagged beats, grey for low-quality segments. The raw signal,
+ * when overlaid, is a quieter grey so the filtered trace stays in front.
  */
 :root {
   --background: #f8fafc;
@@ -23,6 +24,7 @@
   --warning-fg: #6b4a00;
 
   --signal: #0072b2;
+  --raw: #9aa5b4;
   --beat: #e69f00;
   --flagged: #d55e00;
   --low-quality: #94a3b8;
@@ -44,6 +46,7 @@
   --warning-fg: #f3d27a;
 
   --signal: #56b4e9;
+  --raw: #5b6a82;
   --beat: #e69f00;
   --flagged: #ff7a33;
   --low-quality: #64748b;

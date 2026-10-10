@@ -1,5 +1,6 @@
 export interface PlotColors {
   signal: string;
+  raw: string;
   grid: string;
   text: string;
 }
@@ -8,5 +9,10 @@ export interface PlotColors {
 export function readPlotColors(): PlotColors {
   const style = getComputedStyle(document.documentElement);
   const read = (name: string) => style.getPropertyValue(name).trim();
-  return { signal: read('--signal'), grid: read('--grid'), text: read('--muted-foreground') };
+  return {
+    signal: read('--signal'),
+    raw: read('--raw'),
+    grid: read('--grid'),
+    text: read('--muted-foreground'),
+  };
 }

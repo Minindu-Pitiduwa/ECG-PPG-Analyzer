@@ -13,7 +13,7 @@ complete.
 | Phase | Scope                                                         | State |
 | ----- | ------------------------------------------------------------- | ----- |
 | 1     | Project setup, CI, sample and CSV loading, zoomable plot      | Done  |
-| 2     | Filters, verified against SciPy                               |       |
+| 2     | Filters, verified against SciPy                               | Done  |
 | 3     | Pan–Tompkins and PPG beat detection, beat editing, heart rate |       |
 | 4     | Heart rate variability, ectopic handling, signal quality      |       |
 | 5     | Rhythm flags, noise lab                                       |       |
@@ -53,6 +53,15 @@ tests/           unit tests
 e2e/             Playwright tests
 validation/      Python scripts that build samples and reference data (not needed to run the app)
 public/samples/  bundled sample recordings
+```
+
+## Reference data for the filter tests
+
+The filter tests compare the TypeScript output with SciPy's, stored in
+`tests/fixtures/filters.json`. To regenerate it (after the Python setup below):
+
+```bash
+validation/.venv/bin/python validation/gen_fixtures.py
 ```
 
 ## Sample data

@@ -1,9 +1,8 @@
-import type { CsvColumns, CsvExtractOptions } from '@/io/csv';
 import { ImportError } from '@/io/types';
-import type { WorkerRequest, WorkerResponse } from './protocol';
+import type { WorkerApi, WorkerJob, WorkerRequest, WorkerResponse } from './protocol';
 
 interface Pending {
-  resolve: (result: CsvColumns) => void;
+  resolve: (result: WorkerApi[WorkerJob]['result']) => void;
   reject: (error: Error) => void;
 }
 
@@ -41,11 +40,21 @@ function getWorker(): Worker {
   return worker;
 }
 
-/** Parse a whole CSV file off the main thread. */
-export function extractCsvInWorker(text: string, options: CsvExtractOptions): Promise<CsvColumns> {
+/**
+ * Run a job off the main thread. Parameters are copied to the worker, so the
+ * caller keeps its own data; large results are transferred back without a copy.
+ */
+export function runInWorker<Job extends WorkerJob>(
+  job: Job,
+  params: WorkerApi[Job]['params'],
+): Promise<WorkerApi[Job]['result']> {
   return new Promise((resolve, reject) => {
-    const request: WorkerRequest = { id: nextId++, type: 'extractCsv', text, options };
-    pending.set(request.id, { resolve, reject });
-    getWorker().postMessage(request);
+    const id = nextId++;
+    pending.set(id, {
+      // The worker answers a job with that job's result type; the id ties the two together.
+      resolve: (result) => resolve(result as WorkerApi[Job]['result']),
+      reject,
+    });
+    getWorker().postMessage({ id, job, params } as WorkerRequest);
   });
 }

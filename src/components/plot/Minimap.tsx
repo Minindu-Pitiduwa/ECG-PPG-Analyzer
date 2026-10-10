@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { decimateMinMax, extent } from '@/dsp/util/decimate';
-import type { Recording } from '@/io/types';
 import { formatTime } from '@/lib/format';
 import { useThemeStore } from '@/store/theme';
 import { useViewStore } from '@/store/view';
@@ -9,19 +8,19 @@ import { readPlotColors } from './colors';
 const HEIGHT = 48;
 
 interface MinimapProps {
-  recording: Recording;
+  samples: Float64Array;
+  fs: number;
 }
 
 /**
  * A thumbnail of the whole recording with the visible window highlighted.
  * Click or drag to move the window; it also works as a keyboard slider.
  */
-export function Minimap({ recording }: MinimapProps) {
+export function Minimap({ samples, fs }: MinimapProps) {
   const wrapperRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const theme = useThemeStore((state) => state.theme);
   const { min, max, duration } = useViewStore();
-  const { samples, fs } = recording;
 
   useEffect(() => {
     const wrapper = wrapperRef.current;

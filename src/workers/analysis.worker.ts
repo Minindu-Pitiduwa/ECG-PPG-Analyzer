@@ -1,25 +1,56 @@
 /// <reference lib="webworker" />
+import { preprocess } from '@/dsp/filters/preprocess';
 import { extractCsvColumns } from '@/io/csv';
 import { ImportError } from '@/io/types';
-import type { WorkerRequest, WorkerResponse } from './protocol';
+import type { WorkerApi, WorkerJob, WorkerRequest, WorkerResponse } from './protocol';
 
 const scope = self as unknown as DedicatedWorkerGlobalScope;
 
+interface JobOutput<Job extends WorkerJob> {
+  result: WorkerApi[Job]['result'];
+  /** Buffers to hand over to the main thread instead of copying them. */
+  transfer: ArrayBufferLike[];
+}
+
+const handlers: { [Job in WorkerJob]: (params: WorkerApi[Job]['params']) => JobOutput<Job> } = {
+  extractCsv: ({ text, options }) => {
+    const result = extractCsvColumns(text, options);
+    return {
+      result,
+      transfer: [result.signal.buffer, ...(result.time ? [result.time.buffer] : [])],
+    };
+  },
+  preprocess: ({ samples, fs, options }) => {
+    const result = preprocess(samples, fs, options);
+    return { result, transfer: [result.filtered.buffer] };
+  },
+};
+
+function run(request: WorkerRequest): JobOutput<WorkerJob> {
+  // The switch lets TypeScript pair each job name with its own parameter type.
+  switch (request.job) {
+    case 'extractCsv':
+      return handlers.extractCsv(request.params);
+    case 'preprocess':
+      return handlers.preprocess(request.params);
+  }
+}
+
 scope.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const request = event.data;
+  let response: WorkerResponse;
+  let transfer: ArrayBufferLike[] = [];
   try {
-    const result = extractCsvColumns(request.text, request.options);
-    const response: WorkerResponse = { id: request.id, ok: true, result };
-    // Transfer the sample buffers instead of copying them back to the main thread.
-    const buffers = [result.signal.buffer, ...(result.time ? [result.time.buffer] : [])];
-    scope.postMessage(response, buffers);
+    const output = run(request);
+    response = { id: request.id, ok: true, result: output.result };
+    transfer = output.transfer;
   } catch (error) {
-    const response: WorkerResponse = {
+    response = {
       id: request.id,
       ok: false,
       message: error instanceof Error ? error.message : String(error),
       isImportError: error instanceof ImportError,
     };
-    scope.postMessage(response);
   }
+  scope.postMessage(response, transfer as Transferable[]);
 };

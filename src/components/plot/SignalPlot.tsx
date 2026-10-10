@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import uPlot from 'uplot';
 import { decimateMinMax, extent } from '@/dsp/util/decimate';
-import { UNIT_LABELS, type Recording } from '@/io/types';
+import { UNIT_LABELS, type SignalUnits } from '@/io/types';
 import { decimalsForStep, formatTime, formatValue } from '@/lib/format';
 import { useThemeStore } from '@/store/theme';
 import { useViewStore } from '@/store/view';
@@ -20,8 +20,17 @@ interface Hover {
   value: number;
 }
 
+export interface PlotTrace {
+  samples: Float64Array;
+  /** Which palette entry to draw with. */
+  color: 'signal' | 'raw';
+}
+
 interface SignalPlotProps {
-  recording: Recording;
+  /** Traces drawn back to front; the hover readout follows the last one. All share `fs`. */
+  traces: PlotTrace[];
+  fs: number;
+  units: SignalUnits;
 }
 
 /**
@@ -33,15 +42,15 @@ interface SignalPlotProps {
  * about two points per pixel. uPlot therefore never holds more than a few
  * thousand points, however long the recording is.
  */
-export function SignalPlot({ recording }: SignalPlotProps) {
+export function SignalPlot({ traces, fs, units }: SignalPlotProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const theme = useThemeStore((state) => state.theme);
   const [hover, setHover] = useState<Hover | null>(null);
-  const { samples, fs, units } = recording;
 
   useEffect(() => {
     const host = hostRef.current;
-    if (!host) return;
+    if (!host || traces.length === 0) return;
+    const front = traces[traces.length - 1].samples;
 
     const colors = readPlotColors();
     const axis: uPlot.Axis = {
@@ -68,7 +77,16 @@ export function SignalPlot({ recording }: SignalPlotProps) {
           },
           { ...axis, label: UNIT_LABELS[units], labelSize: 18, size: 60 },
         ],
-        series: [{}, { stroke: colors.signal, width: 1.25, points: { show: false } }],
+        series: [
+          {},
+          ...traces.map((trace): uPlot.Series => ({
+            stroke: colors[trace.color],
+            width: 1.25,
+            points: { show: false },
+            // Traces are thinned separately, so their time points differ; draw through the gaps.
+            spanGaps: true,
+          })),
+        ],
         hooks: {
           setCursor: [
             (u) => {
@@ -79,24 +97,32 @@ export function SignalPlot({ recording }: SignalPlotProps) {
               }
               // Read the value from the full-resolution signal, not the decimated trace.
               const index = Math.round(u.posToVal(left, 'x') * fs);
-              if (index < 0 || index >= samples.length) setHover(null);
-              else setHover({ time: index / fs, value: samples[index] });
+              if (index < 0 || index >= front.length) setHover(null);
+              else setHover({ time: index / fs, value: front[index] });
             },
           ],
         },
       },
-      [[], []],
+      [[], ...traces.map(() => [])],
       host,
     );
 
     const draw = () => {
       const { min, max } = useViewStore.getState();
       const pixels = Math.max(1, Math.round(plot.bbox.width / devicePixelRatio));
-      const { t, y } = decimateMinMax(samples, fs, min * fs, max * fs + 1, pixels);
-      const [lo, hi] = extent(y);
+      let lo = Infinity;
+      let hi = -Infinity;
+      const tables = traces.map((trace): uPlot.AlignedData => {
+        const { t, y } = decimateMinMax(trace.samples, fs, min * fs, max * fs + 1, pixels);
+        const [low, high] = extent(y);
+        lo = Math.min(lo, low);
+        hi = Math.max(hi, high);
+        return [t, y];
+      });
       const padding = (hi - lo) * Y_PADDING || 1;
       plot.batch(() => {
-        plot.setData([t, y], false);
+        // join() merges the per-trace time axes into the single shared axis uPlot needs.
+        plot.setData(tables.length === 1 ? tables[0] : uPlot.join(tables), false);
         plot.setScale('x', { min, max });
         plot.setScale('y', { min: lo - padding, max: hi + padding });
       });
@@ -160,7 +186,7 @@ export function SignalPlot({ recording }: SignalPlotProps) {
       plot.destroy(); // also removes the listeners attached to its elements
     };
     // The theme is a dependency because canvas colors are fixed when the plot is created.
-  }, [samples, fs, units, theme]);
+  }, [traces, fs, units, theme]);
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     const view = useViewStore.getState();
