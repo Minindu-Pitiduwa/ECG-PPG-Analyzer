@@ -1,0 +1,104 @@
+@import 'tailwindcss';
+@import 'uplot/dist/uPlot.min.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Plot colors follow the Okabe–Ito palette, which stays distinguishable under
+ * the common forms of color blindness: blue for the signal, orange for beats,
+ * vermillion for flagged beats, grey for low-quality segments.
+ */
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --muted: #f1f5f9;
+  --muted-foreground: #526077;
+  --border: #dbe2ea;
+  --primary: #005f94;
+  --primary-foreground: #ffffff;
+  --ring: #0072b2;
+  --danger: #b3261e;
+  --warning-bg: #fff7e0;
+  --warning-fg: #6b4a00;
+
+  --signal: #0072b2;
+  --beat: #e69f00;
+  --flagged: #d55e00;
+  --low-quality: #94a3b8;
+  --grid: #e5eaf0;
+}
+
+.dark {
+  --background: #0b1220;
+  --foreground: #e6ebf2;
+  --card: #111a2b;
+  --muted: #1a2538;
+  --muted-foreground: #9aa8bd;
+  --border: #27344a;
+  --primary: #56b4e9;
+  --primary-foreground: #06202f;
+  --ring: #56b4e9;
+  --danger: #ff8a80;
+  --warning-bg: #33290a;
+  --warning-fg: #f3d27a;
+
+  --signal: #56b4e9;
+  --beat: #e69f00;
+  --flagged: #ff7a33;
+  --low-quality: #64748b;
+  --grid: #1f2a3d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-ring: var(--ring);
+  --color-danger: var(--danger);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-fg: var(--warning-fg);
+  --color-signal: var(--signal);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+/* The plot handles horizontal drags itself; vertical swipes still scroll the page. */
+.uplot .u-over {
+  touch-action: pan-y;
+  cursor: grab;
+}
+.uplot .u-over:active {
+  cursor: grabbing;
+}

@@ -1,0 +1,72 @@
+# PulseScope
+
+A browser-based ECG and PPG signal analyzer. Load a recording, and PulseScope
+cleans the signal, finds each heartbeat and measures heart rate and its
+variability. Everything runs locally in the browser; no data is uploaded.
+
+> **For education and research only. Not a medical device. Do not use for diagnosis.**
+
+**Status: in development.** This README is a working stub and will be replaced by
+the full version (demo, algorithm notes, validation results) when the project is
+complete.
+
+| Phase | Scope                                                         | State |
+| ----- | ------------------------------------------------------------- | ----- |
+| 1     | Project setup, CI, sample and CSV loading, zoomable plot      | Done  |
+| 2     | Filters, verified against SciPy                               |       |
+| 3     | Pan–Tompkins and PPG beat detection, beat editing, heart rate |       |
+| 4     | Heart rate variability, ectopic handling, signal quality      |       |
+| 5     | Rhythm flags, noise lab                                       |       |
+| 6     | WFDB import, PDF/CSV/JSON export                              |       |
+| 7     | MIT-BIH benchmark, full README, deployment                    |       |
+
+## Run locally
+
+Requires Node.js 22 or newer.
+
+```bash
+npm install
+npm run dev
+```
+
+## Checks
+
+```bash
+npm run lint         # ESLint
+npm run typecheck    # TypeScript, strict mode
+npm test             # unit tests (Vitest)
+npm run build        # production build
+npx playwright install chromium   # once
+npx playwright test  # end-to-end tests, run against the production build
+```
+
+## Project layout
+
+```
+src/dsp/         signal processing: pure TypeScript, no browser or React imports
+src/io/          file parsers and the sample loader
+src/workers/     Web Worker that keeps heavy work off the UI thread
+src/store/       Zustand stores
+src/components/  shared UI and plot components
+src/features/    the Load, Analyze and Report screens
+tests/           unit tests
+e2e/             Playwright tests
+validation/      Python scripts that build samples and reference data (not needed to run the app)
+public/samples/  bundled sample recordings
+```
+
+## Sample data
+
+The bundled recordings are excerpts from the MIT-BIH Arrhythmia Database and the
+BIDMC PPG and Respiration Dataset (PhysioNet). See
+[DATA_LICENSES.md](DATA_LICENSES.md). To regenerate them:
+
+```bash
+python -m venv validation/.venv
+validation/.venv/bin/pip install -r validation/requirements.txt
+validation/.venv/bin/python validation/make_samples.py
+```
+
+## License
+
+MIT. See [LICENSE](LICENSE). Sample data keeps its own license.

@@ -1,0 +1,12 @@
+node_modules
+dist
+coverage
+test-results
+playwright-report
+*.local
+.DS_Store
+
+# Python validation tooling
+validation/.venv
+validation/data
+__pycache__
