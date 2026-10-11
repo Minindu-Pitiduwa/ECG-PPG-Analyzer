@@ -17,6 +17,7 @@ import {
   templateSqi,
   type SegmentQuality,
 } from '@/dsp/quality/templateSqi';
+import { detectFlags, type RhythmFlag } from '@/dsp/rhythm/flags';
 import type { Recording } from '@/io/types';
 import { useAnalysisStore } from '@/store/analysis';
 import { useBeats } from '@/store/beats';
@@ -38,6 +39,8 @@ export interface Analysis {
   /** Share of segments with good signal quality, 0 to 1. */
   goodFraction: number;
   lowQualitySpans: TimeSpan[];
+  /** Rhythm screening hints that were raised. */
+  flags: RhythmFlag[];
 }
 
 /**
@@ -51,6 +54,7 @@ export function useAnalysis(recording: Recording): Analysis {
   const beats = useBeats();
   const filtered = useAnalysisStore((state) => state.filtered);
   const spectralMethod = useSettingsStore((state) => state.spectralMethod);
+  const rhythmOptions = useSettingsStore((state) => state.rhythm);
   const { fs, kind } = recording;
 
   const core = useMemo(() => {
@@ -84,6 +88,7 @@ export function useAnalysis(recording: Recording): Analysis {
       poincare: poincare(intervalsMs, labels),
       goodFraction: goodFraction(quality),
       lowQualitySpans: quality.filter((segment) => !segment.good),
+      flags: detectFlags(core.beatTimesS, intervalsMs, labels, rhythmOptions),
     };
-  }, [core, beats, spectral]);
+  }, [core, beats, spectral, rhythmOptions]);
 }

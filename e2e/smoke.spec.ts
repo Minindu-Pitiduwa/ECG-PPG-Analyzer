@@ -167,3 +167,40 @@ test('a recording too short for frequency analysis says why', async ({ page }) =
   await page.getByRole('tab', { name: 'HRV details' }).click();
   await expect(page.getByText(/Frequency analysis needs at least 2 minutes/)).toBeVisible();
 });
+
+test('rhythm flags say what was found and jump to where', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /ECG: frequent ectopic beats/ }).click();
+
+  await page.getByRole('tab', { name: 'Rhythm flags (1)' }).click();
+  await expect(page.getByText(/screening hints/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Premature beats' })).toBeVisible();
+  await expect(page.getByText(/77 early beats followed by a longer gap/)).toBeVisible();
+  await page.getByText('How this was computed').click();
+  await expect(page.getByText(/20% shorter than the median/)).toBeVisible();
+
+  const minimap = page.getByTestId('minimap');
+  await expect(minimap).toHaveAttribute('aria-valuetext', 'Showing 0:00 to 0:10');
+  await page.getByRole('button', { name: '0:36', exact: true }).click();
+  await expect(minimap).toHaveAttribute('aria-valuetext', /Showing 0:3\d to 0:4\d/);
+
+  // Thresholds are adjustable: this 66 bpm rhythm counts as slow once slow means below 90.
+  await expect(page.getByRole('heading', { name: 'Slow rate' })).toHaveCount(0);
+  await page.getByLabel('Slow below (bpm)').fill('90');
+  await expect(page.getByRole('heading', { name: 'Slow rate' })).toBeVisible();
+});
+
+test('the noise lab shows detection degrading as noise is added', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Try a sample ECG' }).click();
+  await page.getByRole('tab', { name: 'Noise lab' }).click();
+
+  await expect(page.getByTestId('noise-plot').locator('canvas')).toBeVisible();
+  await expect(page.getByRole('img', { name: /F1 score against signal-to-noise/ })).toBeVisible();
+  // At 0 dB of muscle noise every beat of this recording is still found.
+  await expect(page.getByText('0 missed, 0 extra, out of 371 beats.')).toBeVisible();
+
+  await page.getByRole('slider', { name: /Signal-to-noise ratio/ }).fill('7'); // loudest level
+  await expect(page.getByText(/Signal-to-noise ratio: -18 dB/)).toBeVisible();
+  await expect(page.getByText(/\d+ missed, \d{2,} extra, out of 371 beats\./)).toBeVisible();
+});

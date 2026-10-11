@@ -1,3 +1,5 @@
+import type { NoiseExperiment } from '@/dsp/noise/experiment';
+import type { NoiseKind, NoiseOptions } from '@/dsp/noise/generate';
 import type { AnalysisOptions, AnalysisResult } from '@/dsp/pipeline';
 import type { SignalKind } from '@/dsp/types';
 import type { CsvColumns, CsvExtractOptions } from '@/io/csv';
@@ -11,6 +13,20 @@ export interface WorkerApi {
   analyze: {
     params: { samples: Float64Array; fs: number; kind: SignalKind; options: AnalysisOptions };
     result: AnalysisResult;
+  };
+  noiseExperiment: {
+    params: {
+      samples: Float64Array;
+      fs: number;
+      kind: SignalKind;
+      options: AnalysisOptions;
+      referenceBeatsS: Float64Array;
+      noiseKind: NoiseKind;
+      noiseOptions: NoiseOptions;
+      snrLevelsDb: number[];
+      previewSnrDb: number;
+    };
+    result: NoiseExperiment;
   };
 }
 

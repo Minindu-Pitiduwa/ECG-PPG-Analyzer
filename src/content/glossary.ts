@@ -1,3 +1,5 @@
+import type { FlagKind } from '@/dsp/rhythm/flags';
+
 /**
  * Plain-language explanations shown in info tooltips. Kept in one place so
  * the wording stays consistent and can be reviewed without reading UI code.
@@ -39,6 +41,16 @@ export const GLOSSARY = {
     'Heart rate from each beat-to-beat interval. Slow waves are normal (breathing, activity). Isolated spikes usually mean a missed, extra or early beat; those are flagged. Click the plot to jump to that moment.',
   editBeats:
     'Correct the automatic detection by hand. While this is on, click a marker to delete it, or click a peak to add a beat. All metrics update at once, and Undo reverts the last change.',
+  flagCount:
+    'Number of rhythm patterns flagged by simple rules. These are hints for where to look, not findings: noise and detection errors can raise them, and an absence of flags does not mean a normal rhythm.',
+  rateThresholds:
+    'The rates beyond which a stretch counts as fast or slow. 100 and 60 beats per minute are the conventional adult resting limits; rates below 60 are common and normal in athletes and during sleep.',
+  noiseKind:
+    'Baseline wander is slow drift from breathing and movement. Mains hum is 50 or 60 Hz pickup from power lines. Muscle noise is broadband interference from tensed muscles. Motion artifacts are brief, large swings when an electrode or sensor moves.',
+  snr: 'Signal-to-noise ratio in decibels. 0 dB means the noise has as much power as the signal; every 6 dB lower doubles the noise amplitude. A good resting ECG is above 20 dB.',
+  sensitivity: 'Share of the real beats that were still found. Falls when noise hides beats.',
+  ppv: 'Positive predictive value: share of the detections that were real beats. Falls when noise is mistaken for beats.',
+  f1: 'A single score combining sensitivity and positive predictive value (their harmonic mean). 100% means every beat was found and nothing extra.',
   viewMode:
     'Filtered is the cleaned signal used for analysis. Raw is the recording as loaded. Both overlays them so you can see what the filters removed.',
   mains:
@@ -54,3 +66,12 @@ export const GLOSSARY = {
   frequencyResponse:
     'How much each frequency is kept (0 dB) or reduced (-20 dB is one tenth of the amplitude). This is the effective response after filtering forwards and backwards.',
 } as const;
+
+/** Short names of the rhythm flags, used wherever a flag is listed. */
+export const FLAG_TITLES: Record<FlagKind, string> = {
+  tachycardia: 'Fast rate',
+  bradycardia: 'Slow rate',
+  pause: 'Pauses',
+  premature: 'Premature beats',
+  irregular: 'Irregular rhythm',
+};

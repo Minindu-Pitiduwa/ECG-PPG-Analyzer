@@ -2,8 +2,9 @@
 
 For each of the 48 records this writes, into validation/data/mitdb-export/:
   <record>.i16   first channel as little-endian int16 ADC counts
-and one records.json with the sampling rate, gain, baseline, lead name and the
-sample indices of the reference beat annotations.
+and one records.json with the sampling rate, gain, baseline, lead name, the
+sample indices of the reference beat annotations, and the annotated rhythm
+changes (used to check the irregular-rhythm flag).
 
 Only beat annotations are exported. Rhythm changes, noise marks and other
 non-beat annotations are not heartbeats and must not be scored.
@@ -62,6 +63,12 @@ def main() -> None:
         adc = record.d_signal[:, 0]
         adc.astype("<i2").tofile(OUT_DIR / f"{name}.i16")
         beats = [int(s) for s, sym in zip(annotation.sample, annotation.symbol) if sym in BEAT_SYMBOLS]
+        # Rhythm changes are '+' annotations whose note names the rhythm that starts there, e.g. "(AFIB".
+        rhythms = [
+            {"sample": int(s), "rhythm": note.strip("\x00 ").lstrip("(")}
+            for s, sym, note in zip(annotation.sample, annotation.symbol, annotation.aux_note)
+            if sym == "+"
+        ]
         index.append(
             {
                 "record": name,
@@ -72,6 +79,7 @@ def main() -> None:
                 "lead": record.sig_name[0],
                 "paced": name in PACED_RECORDS,
                 "beats": beats,
+                "rhythms": rhythms,
             }
         )
     (OUT_DIR / "records.json").write_text(json.dumps(index) + "\n")

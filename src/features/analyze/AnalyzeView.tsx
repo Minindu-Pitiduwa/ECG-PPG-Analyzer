@@ -10,7 +10,7 @@ import {
   ZoomOut,
 } from 'lucide-react';
 import { Tabs } from 'radix-ui';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { InfoTip } from '@/components/InfoTip';
 import { MetricCard } from '@/components/MetricCard';
 import { Minimap } from '@/components/plot/Minimap';
@@ -18,9 +18,10 @@ import { SignalPlot, type PlotClick, type PlotTrace } from '@/components/plot/Si
 import { TrendPlot } from '@/components/plot/TrendPlot';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { GLOSSARY } from '@/content/glossary';
+import { FLAG_TITLES, GLOSSARY } from '@/content/glossary';
 import { snapToPeak } from '@/dsp/detect/edits';
 import { heartRateSeries } from '@/dsp/hrv/heartRate';
+import type { FlagLocation } from '@/dsp/rhythm/flags';
 import type { Recording } from '@/io/types';
 import { cn } from '@/lib/cn';
 import { formatDuration } from '@/lib/format';
@@ -28,10 +29,15 @@ import { useAnalysisStore } from '@/store/analysis';
 import { useBeatEditStore } from '@/store/beats';
 import { useViewStore } from '@/store/view';
 import { HrvDetails } from './HrvDetails';
+import { NoiseLab } from './NoiseLab';
+import { RhythmFlags } from './RhythmFlags';
 import { SettingsPanel } from './SettingsPanel';
 import { useAnalysis } from './useAnalysis';
 
 const ZOOM_STEP = 0.5;
+/** Time shown on each side of a flagged location when jumping to it, and the least time shown in all. */
+const JUMP_MARGIN_S = 2;
+const JUMP_MIN_SPAN_S = 8;
 /** Tailwind's `lg` breakpoint: from here up there is room for the settings beside the plot. */
 const WIDE_SCREEN = '(min-width: 1024px)';
 /** A click this close to a marker, in screen pixels, is aimed at that marker. */
@@ -65,7 +71,7 @@ export function AnalyzeView({ recording }: AnalyzeViewProps) {
   const polarity = useAnalysisStore((state) => state.polarity);
   const analyzing = useAnalysisStore((state) => state.status === 'running');
   const analysis = useAnalysis(recording);
-  const { beats, beatTimesS, heartRate, timeDomain, exclusions } = analysis;
+  const { beats, beatTimesS, heartRate, timeDomain, exclusions, flags } = analysis;
   const editCount = useBeatEditStore((state) => state.edits.length);
   const undo = useBeatEditStore((state) => state.undo);
   const [viewMode, setViewMode] = useState<ViewMode>('filtered');
@@ -126,6 +132,15 @@ export function AnalyzeView({ recording }: AnalyzeViewProps) {
     view.setView(timeS - half, timeS + half);
   }, []);
 
+  const plotCardRef = useRef<HTMLDivElement>(null);
+  const jumpToLocation = useCallback((location: FlagLocation) => {
+    const center = (location.startS + location.endS) / 2;
+    const half = Math.max(JUMP_MIN_SPAN_S, location.endS - location.startS + 2 * JUMP_MARGIN_S) / 2;
+    useViewStore.getState().setView(center - half, center + half);
+    // The flags sit below the plot; bring the plot back into view so the jump is seen.
+    plotCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, []);
+
   return (
     <div className="space-y-4">
       <div className="flex items-start gap-3">
@@ -163,7 +178,10 @@ export function AnalyzeView({ recording }: AnalyzeViewProps) {
 
       <div className={cn('grid gap-4', settingsOpen && 'lg:grid-cols-[minmax(0,1fr)_18rem]')}>
         <div className="min-w-0 space-y-4">
-          <Card className={cn('space-y-2 p-3 sm:p-4', editing && 'editing-beats')}>
+          <Card
+            ref={plotCardRef}
+            className={cn('space-y-2 p-3 sm:p-4', editing && 'editing-beats')}
+          >
             <div className="flex flex-wrap items-center gap-1">
               <div
                 role="radiogroup"
@@ -290,7 +308,7 @@ export function AnalyzeView({ recording }: AnalyzeViewProps) {
             <Minimap samples={traces[traces.length - 1].samples} fs={fs} />
           </Card>
 
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             <MetricCard
               label={`Mean ${rateName}`}
               value={formatBpm(heartRate.meanBpm)}
@@ -335,16 +353,35 @@ export function AnalyzeView({ recording }: AnalyzeViewProps) {
               detail={`${exclusions.excluded} interval${exclusions.excluded === 1 ? '' : 's'} excluded`}
               tip={`${GLOSSARY.beatCount} ${GLOSSARY.excluded}`}
             />
+            <MetricCard
+              label="Rhythm flags"
+              value={String(flags.length)}
+              detail={
+                flags.length > 0
+                  ? flags.map((flag) => FLAG_TITLES[flag.kind]).join(', ')
+                  : 'None raised'
+              }
+              tip={GLOSSARY.flagCount}
+            />
           </div>
 
           <Card className="p-3 sm:p-4">
             <Tabs.Root defaultValue="rate">
-              <Tabs.List className="mb-4 flex border-b" aria-label="Analysis details">
+              <Tabs.List
+                className="mb-4 flex overflow-x-auto border-b whitespace-nowrap"
+                aria-label="Analysis details"
+              >
                 <Tabs.Trigger value="rate" className={TAB_CLASS}>
                   {kind === 'ecg' ? 'Heart rate' : 'Pulse rate'}
                 </Tabs.Trigger>
                 <Tabs.Trigger value="hrv" className={TAB_CLASS}>
                   HRV details
+                </Tabs.Trigger>
+                <Tabs.Trigger value="flags" className={TAB_CLASS}>
+                  Rhythm flags{flags.length > 0 && ` (${flags.length})`}
+                </Tabs.Trigger>
+                <Tabs.Trigger value="noise" className={TAB_CLASS}>
+                  Noise lab
                 </Tabs.Trigger>
               </Tabs.List>
 
@@ -397,6 +434,14 @@ export function AnalyzeView({ recording }: AnalyzeViewProps) {
 
               <Tabs.Content value="hrv">
                 <HrvDetails analysis={analysis} kind={kind} />
+              </Tabs.Content>
+
+              <Tabs.Content value="flags">
+                <RhythmFlags flags={flags} beatCount={beats.length} onJump={jumpToLocation} />
+              </Tabs.Content>
+
+              <Tabs.Content value="noise">
+                <NoiseLab recording={recording} referenceBeatsS={beatTimesS} />
               </Tabs.Content>
             </Tabs.Root>
           </Card>

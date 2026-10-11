@@ -59,6 +59,11 @@ interface SignalPlotProps {
   lowQuality: TimeSpan[];
   /** Called for a click (not a drag) on the plot area. */
   onClick?: (click: PlotClick) => void;
+  /** Plot height in CSS pixels. */
+  height?: number;
+  /** Accessible name; set it when a page shows more than one signal plot. */
+  label?: string;
+  testId?: string;
 }
 
 /** Index of the first beat at or after `timeS`. */
@@ -151,7 +156,17 @@ function drawBeats(
  * about two points per pixel. uPlot therefore never holds more than a few
  * thousand points, however long the recording is.
  */
-export function SignalPlot({ traces, fs, units, beats, lowQuality, onClick }: SignalPlotProps) {
+export function SignalPlot({
+  traces,
+  fs,
+  units,
+  beats,
+  lowQuality,
+  onClick,
+  height = PLOT_HEIGHT,
+  label = 'Signal plot',
+  testId = 'signal-plot',
+}: SignalPlotProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const plotRef = useRef<uPlot | null>(null);
   const theme = useThemeStore((state) => state.theme);
@@ -184,7 +199,7 @@ export function SignalPlot({ traces, fs, units, beats, lowQuality, onClick }: Si
     const plot = new uPlot(
       {
         width: host.clientWidth,
-        height: PLOT_HEIGHT,
+        height,
         legend: { show: false },
         // Dragging pans (handled below), so uPlot's own drag-to-zoom is turned off.
         cursor: { drag: { x: false, y: false }, y: false, points: { show: false } },
@@ -266,7 +281,7 @@ export function SignalPlot({ traces, fs, units, beats, lowQuality, onClick }: Si
     const unsubscribe = useViewStore.subscribe(scheduleDraw);
 
     const resizeObserver = new ResizeObserver(() => {
-      plot.setSize({ width: host.clientWidth, height: PLOT_HEIGHT });
+      plot.setSize({ width: host.clientWidth, height });
       scheduleDraw();
     });
     resizeObserver.observe(host);
@@ -330,7 +345,7 @@ export function SignalPlot({ traces, fs, units, beats, lowQuality, onClick }: Si
       plot.destroy(); // also removes the listeners attached to its elements
     };
     // The theme is a dependency because canvas colors are fixed when the plot is created.
-  }, [traces, fs, units, theme]);
+  }, [traces, fs, units, height, theme]);
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     const view = useViewStore.getState();
@@ -360,11 +375,11 @@ export function SignalPlot({ traces, fs, units, beats, lowQuality, onClick }: Si
         ref={hostRef}
         role="group"
         tabIndex={0}
-        aria-label="Signal plot. Use the left and right arrow keys to pan, plus and minus to zoom, zero to reset."
+        aria-label={`${label}. Use the left and right arrow keys to pan, plus and minus to zoom, zero to reset.`}
         onKeyDown={onKeyDown}
         className="rounded-md"
-        style={{ height: PLOT_HEIGHT }}
-        data-testid="signal-plot"
+        style={{ height }}
+        data-testid={testId}
       />
     </div>
   );

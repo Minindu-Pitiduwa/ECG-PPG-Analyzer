@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { runNoiseExperiment } from '@/dsp/noise/experiment';
 import { analyzeRecording } from '@/dsp/pipeline';
 import { extractCsvColumns } from '@/io/csv';
 import { ImportError } from '@/io/types';
@@ -27,6 +28,21 @@ const handlers: { [Job in WorkerJob]: (params: WorkerApi[Job]['params']) => JobO
       transfer: [result.filtered.buffer, result.peaks.buffer, result.beatTimesS.buffer],
     };
   },
+  noiseExperiment: (params) => {
+    const result = runNoiseExperiment(
+      params.samples,
+      params.fs,
+      params.kind,
+      params.options,
+      params.referenceBeatsS,
+      params.noiseKind,
+      params.noiseOptions,
+      params.snrLevelsDb,
+      params.previewSnrDb,
+    );
+    const { noisy, filtered, beatTimesS } = result.preview;
+    return { result, transfer: [noisy.buffer, filtered.buffer, beatTimesS.buffer] };
+  },
 };
 
 function run(request: WorkerRequest): JobOutput<WorkerJob> {
@@ -36,6 +52,8 @@ function run(request: WorkerRequest): JobOutput<WorkerJob> {
       return handlers.extractCsv(request.params);
     case 'analyze':
       return handlers.analyze(request.params);
+    case 'noiseExperiment':
+      return handlers.noiseExperiment(request.params);
   }
 }
 

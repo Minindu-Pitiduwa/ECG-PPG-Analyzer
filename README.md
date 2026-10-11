@@ -16,7 +16,7 @@ complete.
 | 2     | Filters, verified against SciPy                               | Done  |
 | 3     | Pan–Tompkins and PPG beat detection, beat editing, heart rate | Done  |
 | 4     | Heart rate variability, ectopic handling, signal quality      | Done  |
-| 5     | Rhythm flags, noise lab                                       |       |
+| 5     | Rhythm flags, noise lab                                       | Done  |
 | 6     | WFDB import, PDF/CSV/JSON export                              |       |
 | 7     | MIT-BIH benchmark, full README, deployment                    |       |
 
@@ -80,6 +80,7 @@ records. The full write-up comes in phase 7.
 ```bash
 validation/.venv/bin/python validation/benchmark/export_mitdb.py   # downloads ~100 MB once
 npx tsx validation/benchmark/run_ts.ts
+npx tsx validation/benchmark/run_irregular.ts   # irregular-rhythm rule vs. annotated rhythms
 ```
 
 ## Sample data
