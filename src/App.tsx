@@ -19,7 +19,7 @@ export function App() {
         <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 sm:px-6">
           {step === 'load' && <LoadView />}
           {step === 'analyze' && recording && <AnalyzeView recording={recording} />}
-          {step === 'report' && <ReportView />}
+          {step === 'report' && recording && <ReportView recording={recording} />}
         </main>
         <Disclaimer />
       </div>

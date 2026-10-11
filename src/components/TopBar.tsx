@@ -1,9 +1,8 @@
 import { Activity, FolderOpen, Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { APP_NAME, REPO_URL } from '@/lib/appInfo';
 import { useRecordingStore } from '@/store/recording';
 import { useThemeStore } from '@/store/theme';
-
-const REPO_URL = 'https://github.com/Minindu-Pitiduwa/ECG-PPG-Analyzer';
 
 /** lucide-react ships no brand icons, so the GitHub mark is inlined. */
 function GitHubMark() {
@@ -23,7 +22,7 @@ export function TopBar() {
     <header className="bg-card border-b">
       <div className="mx-auto flex h-14 max-w-6xl items-center gap-2 px-4 sm:px-6">
         <Activity className="text-signal size-5" aria-hidden />
-        <span className="text-base font-semibold tracking-tight">PulseScope</span>
+        <span className="text-base font-semibold tracking-tight">{APP_NAME}</span>
         <span className="text-muted-foreground hidden text-sm sm:inline">
           ECG &amp; PPG analyzer
         </span>

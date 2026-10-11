@@ -5,10 +5,12 @@ import { Card } from '@/components/ui/card';
 import { sniffCsv, type CsvPreview } from '@/io/csv';
 import { listSamples, loadSample, type SampleInfo } from '@/io/samples';
 import { ImportError } from '@/io/types';
+import { parseWfdbHeader } from '@/io/wfdb';
 import { cn } from '@/lib/cn';
 import { formatDuration } from '@/lib/format';
 import { useRecordingStore } from '@/store/recording';
 import { CsvImportForm } from './CsvImportForm';
+import { WfdbImportForm, type PendingWfdb } from './WfdbImportForm';
 
 /** Far beyond a 30-minute recording; a larger file is almost certainly the wrong file. */
 const MAX_FILE_BYTES = 200 * 1024 * 1024;
@@ -30,6 +32,7 @@ export function LoadView() {
   const [samples, setSamples] = useState<SampleInfo[]>([]);
   const [loadingId, setLoadingId] = useState<string | null>(null);
   const [pendingCsv, setPendingCsv] = useState<PendingCsv | null>(null);
+  const [pendingWfdb, setPendingWfdb] = useState<PendingWfdb | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -58,25 +61,62 @@ export function LoadView() {
     }
   };
 
-  const openFile = async (file: File | undefined) => {
-    if (!file) return;
+  const openCsv = async (file: File) => {
+    const text = await file.text();
+    setPendingCsv({ fileName: file.name, text, preview: sniffCsv(text) });
+  };
+
+  /** A WFDB record is a text header plus the binary file(s) it names; both must be chosen together. */
+  const openWfdb = async (headerFile: File, files: File[]) => {
+    const header = parseWfdbHeader(await headerFile.text());
+    const dataFiles = new Map<string, ArrayBuffer>();
+    for (const file of files) {
+      if (header.signals.some((signal) => signal.fileName === file.name)) {
+        dataFiles.set(file.name, await file.arrayBuffer());
+      }
+    }
+    if (dataFiles.size === 0) {
+      const needed = [...new Set(header.signals.map((signal) => signal.fileName))].join(' or ');
+      throw new ImportError(
+        `A WFDB header needs its data file. Select ${headerFile.name} and ${needed} together (hold Ctrl or Cmd to pick both).`,
+      );
+    }
+    setPendingWfdb({ header, dataFiles });
+  };
+
+  const openFiles = async (fileList: FileList | null) => {
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
     setError(null);
-    if (file.size === 0) {
+    if (files.some((file) => file.size === 0)) {
       setError('The file is empty.');
       return;
     }
-    if (file.size > MAX_FILE_BYTES) {
+    if (files.some((file) => file.size > MAX_FILE_BYTES)) {
       setError('This file is larger than 200 MB. Export a shorter section and try again.');
       return;
     }
+    const headerFile = files.find((file) => file.name.toLowerCase().endsWith('.hea'));
     try {
-      const text = await file.text();
-      setPendingCsv({ fileName: file.name, text, preview: sniffCsv(text) });
+      if (headerFile) {
+        await openWfdb(headerFile, files);
+      } else if (files.every((file) => file.name.toLowerCase().endsWith('.dat'))) {
+        throw new ImportError(
+          'A WFDB .dat file cannot be read on its own. Select it together with its .hea header file.',
+        );
+      } else {
+        await openCsv(files[0]);
+      }
     } catch (cause) {
-      setError(messageFor(cause, 'Could not read this file. Check that it is a plain text CSV.'));
+      setError(
+        messageFor(cause, 'Could not read this file. Check that it is a CSV or a WFDB record.'),
+      );
     }
   };
 
+  if (pendingWfdb) {
+    return <WfdbImportForm {...pendingWfdb} onCancel={() => setPendingWfdb(null)} />;
+  }
   if (pendingCsv) {
     return <CsvImportForm {...pendingCsv} onCancel={() => setPendingCsv(null)} />;
   }
@@ -143,7 +183,7 @@ export function LoadView() {
           onDrop={(event) => {
             event.preventDefault();
             setDragging(false);
-            void openFile(event.dataTransfer.files[0]);
+            void openFiles(event.dataTransfer.files);
           }}
           className={cn(
             'bg-card mt-2 flex cursor-pointer flex-col items-center gap-1 rounded-lg border border-dashed p-6 text-center',
@@ -152,16 +192,18 @@ export function LoadView() {
           )}
         >
           <Upload className="text-muted-foreground size-5" aria-hidden />
-          <span className="text-sm font-medium">Drop a CSV file here, or click to choose one</span>
+          <span className="text-sm font-medium">Drop a file here, or click to choose one</span>
           <span className="text-muted-foreground text-xs">
-            One column of samples is enough. A time column is optional.
+            CSV with one column of samples (a time column is optional), or a PhysioNet WFDB record:
+            select the .hea and .dat files together.
           </span>
           <input
             type="file"
-            accept=".csv,.tsv,.txt,text/csv,text/plain"
+            multiple
+            accept=".csv,.tsv,.txt,.hea,.dat,text/csv,text/plain"
             className="sr-only"
             onChange={(event) => {
-              void openFile(event.target.files?.[0]);
+              void openFiles(event.target.files);
               event.target.value = ''; // allow choosing the same file again
             }}
           />

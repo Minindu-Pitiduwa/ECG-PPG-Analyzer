@@ -1,4 +1,5 @@
-import type { Signal, SignalKind } from '@/dsp/types';
+// Relative, not the '@/' alias: the WFDB reader is also run directly in Node by the validation scripts.
+import type { Signal, SignalKind } from '../dsp/types';
 
 export type SignalUnits = 'mV' | 'adc' | 'a.u.';
 

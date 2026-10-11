@@ -204,3 +204,66 @@ test('the noise lab shows detection degrading as noise is added', async ({ page 
   await expect(page.getByText(/Signal-to-noise ratio: -18 dB/)).toBeVisible();
   await expect(page.getByText(/\d+ missed, \d{2,} extra, out of 371 beats\./)).toBeVisible();
 });
+
+test('a PhysioNet WFDB record can be imported by choosing its header and data file', async ({
+  page,
+}) => {
+  await page.goto('/');
+  const fileInput = page.locator('input[type=file]');
+
+  // The header alone is not enough, and the message says what else is needed.
+  await fileInput.setInputFiles('tests/fixtures/wfdb/ppg16.hea');
+  await expect(page.getByRole('alert')).toContainText('Select ppg16.hea and ppg16.dat together');
+
+  await fileInput.setInputFiles(['tests/fixtures/wfdb/ppg16.hea', 'tests/fixtures/wfdb/ppg16.dat']);
+  await expect(page.getByRole('heading', { name: 'Import WFDB record ppg16' })).toBeVisible();
+  await expect(page.getByText('5 signals at 125 Hz')).toBeVisible();
+
+  // Choosing the pulse-oximeter channel suggests PPG as the signal type.
+  await page.getByLabel('Signal', { exact: true }).selectOption({ label: 'PLETH (NU)' });
+  await expect(page.getByRole('radio', { name: /PPG/ })).toBeChecked();
+  await page.getByRole('button', { name: 'Import' }).click();
+
+  await expect(page.getByRole('heading', { name: 'ppg16 · PLETH' })).toBeVisible();
+  await expect(page.getByText(/Short recording \(3\.2 s\)/)).toBeVisible();
+  await expect(page.getByTestId('signal-plot').locator('canvas')).toBeVisible();
+});
+
+test('the report step offers a PDF, a beats CSV and a settings JSON', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Try a sample ECG' }).click();
+  await expect(page.getByText('371', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Report' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Settings used' })).toBeVisible();
+  await expect(page.getByText('High-pass at 0.5 Hz')).toBeVisible();
+  await expect(page.getByText(/6 of 370 intervals \(1\.6%\) were excluded/)).toBeVisible();
+
+  const save = async (button: string) => {
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: button }).click(),
+    ]);
+    const stream = await download.createReadStream();
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) chunks.push(chunk as Buffer);
+    return { name: download.suggestedFilename(), content: Buffer.concat(chunks) };
+  };
+
+  const pdf = await save('Download PDF report');
+  expect(pdf.name).toBe('ecg-normal-sinus-rhythm-report.pdf');
+  expect(pdf.content.subarray(0, 5).toString()).toBe('%PDF-');
+  expect(pdf.content.length).toBeGreaterThan(10_000);
+
+  const csv = await save('Beats (CSV)');
+  expect(csv.name).toBe('ecg-normal-sinus-rhythm-beats.csv');
+  const lines = csv.content.toString().trim().split('\n');
+  expect(lines[0]).toBe('beat,time_s,interval_ms,interval_label,source,flagged');
+  expect(lines).toHaveLength(372);
+
+  const json = await save('Settings (JSON)');
+  expect(json.name).toBe('ecg-normal-sinus-rhythm-settings.json');
+  const settings = JSON.parse(json.content.toString());
+  expect(settings.settings.preprocess.lowpassHz).toBe(40);
+  expect(settings.results.beats).toBe(371);
+});

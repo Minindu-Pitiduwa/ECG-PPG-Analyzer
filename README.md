@@ -17,7 +17,7 @@ complete.
 | 3     | Pan–Tompkins and PPG beat detection, beat editing, heart rate | Done  |
 | 4     | Heart rate variability, ectopic handling, signal quality      | Done  |
 | 5     | Rhythm flags, noise lab                                       | Done  |
-| 6     | WFDB import, PDF/CSV/JSON export                              |       |
+| 6     | WFDB import, PDF/CSV/JSON export                              | Done  |
 | 7     | MIT-BIH benchmark, full README, deployment                    |       |
 
 ## Run locally
@@ -67,6 +67,7 @@ setup below):
 validation/.venv/bin/python validation/gen_fixtures.py
 validation/.venv/bin/python validation/gen_sample_refs.py
 validation/.venv/bin/python validation/gen_hrv_fixtures.py
+validation/.venv/bin/python validation/gen_wfdb_fixtures.py
 ```
 
 The HRV tests compare against NeuroKit2 (time domain, Poincaré) and SciPy
@@ -81,6 +82,7 @@ records. The full write-up comes in phase 7.
 validation/.venv/bin/python validation/benchmark/export_mitdb.py   # downloads ~100 MB once
 npx tsx validation/benchmark/run_ts.ts
 npx tsx validation/benchmark/run_irregular.ts   # irregular-rhythm rule vs. annotated rhythms
+npx tsx validation/benchmark/check_wfdb.ts      # WFDB reader vs. the wfdb Python package, all 48 records
 ```
 
 ## Sample data
