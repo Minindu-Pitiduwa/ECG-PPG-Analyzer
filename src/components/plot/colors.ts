@@ -1,6 +1,8 @@
 export interface PlotColors {
   signal: string;
   raw: string;
+  beat: string;
+  card: string;
   grid: string;
   text: string;
 }
@@ -12,6 +14,8 @@ export function readPlotColors(): PlotColors {
   return {
     signal: read('--signal'),
     raw: read('--raw'),
+    beat: read('--beat'),
+    card: read('--card'),
     grid: read('--grid'),
     text: read('--muted-foreground'),
   };

@@ -3,14 +3,18 @@
  * the wording stays consistent and can be reviewed without reading UI code.
  */
 export const GLOSSARY = {
-  duration:
-    'Length of the recording. Heart rate variability needs at least 2 minutes; 5 minutes is the standard for short-term analysis.',
-  samplingRate:
-    'Samples per second. Beat timing can be no more precise than one sample, so 250 Hz or more is preferred for variability analysis.',
-  sampleCount:
-    'Total number of data points. Analysis always uses all of them; only the plot is thinned for drawing.',
-  amplitudeRange:
-    'Smallest and largest value in the raw recording. A range stuck at a limit of your ADC suggests clipping.',
+  meanHeartRate:
+    'Average beats per minute over the whole recording. A resting adult is typically between 60 and 100; athletes and sleeping people are often lower.',
+  minHeartRate:
+    'Slowest rate between two neighbouring beats. A single missed beat halves this value, so check the plot before trusting an unusually low number.',
+  maxHeartRate:
+    'Fastest rate between two neighbouring beats. A single false detection or an early (ectopic) beat can push it far up.',
+  beatCount:
+    'Number of heartbeats found, after your manual corrections. Compare the markers with the signal to check that none are missing or extra.',
+  heartRateTrend:
+    'Heart rate from each beat-to-beat interval. Slow waves are normal (breathing, activity). Isolated spikes usually mean a missed, extra or early beat. Click the plot to jump to that moment.',
+  editBeats:
+    'Correct the automatic detection by hand. While this is on, click a marker to delete it, or click a peak to add a beat. All metrics update at once, and Undo reverts the last change.',
   viewMode:
     'Filtered is the cleaned signal used for analysis. Raw is the recording as loaded. Both overlays them so you can see what the filters removed.',
   mains:

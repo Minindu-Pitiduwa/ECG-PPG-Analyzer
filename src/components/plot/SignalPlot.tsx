@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import uPlot from 'uplot';
+import type { Beat } from '@/dsp/detect/edits';
 import { decimateMinMax, extent } from '@/dsp/util/decimate';
 import { UNIT_LABELS, type SignalUnits } from '@/io/types';
 import { decimalsForStep, formatTime, formatValue } from '@/lib/format';
 import { useThemeStore } from '@/store/theme';
 import { useViewStore } from '@/store/view';
-import { readPlotColors } from './colors';
+import { readPlotColors, type PlotColors } from './colors';
 
 const PLOT_HEIGHT = 340;
 /** Empty space above and below the trace, as a fraction of its visible range. */
@@ -14,6 +15,11 @@ const KEY_PAN_FRACTION = 0.1;
 const KEY_ZOOM_FACTOR = 0.7;
 /** Converts wheel delta (pixels) to a zoom factor; one mouse-wheel notch is roughly 20%. */
 const WHEEL_ZOOM_RATE = 0.002;
+/** A press that moves less than this many pixels is a click, not a drag. */
+const CLICK_SLOP_PX = 4;
+const MARKER_RADIUS_PX = 4;
+/** With markers closer together than this they would merge into a band, so ticks are drawn instead. */
+const MIN_MARKER_SPACING_PX = 6;
 
 interface Hover {
   time: number;
@@ -26,11 +32,83 @@ export interface PlotTrace {
   color: 'signal' | 'raw';
 }
 
+export interface PlotClick {
+  timeS: number;
+  /** Seconds covered by one screen pixel at the current zoom, to judge what a click was aimed at. */
+  secondsPerPixel: number;
+}
+
 interface SignalPlotProps {
-  /** Traces drawn back to front; the hover readout follows the last one. All share `fs`. */
+  /** Traces drawn back to front; the hover readout and beat markers follow the last one. All share `fs`. */
   traces: PlotTrace[];
   fs: number;
   units: SignalUnits;
+  /** Beats to mark on the front trace, in time order. */
+  beats: Beat[];
+  /** Called for a click (not a drag) on the plot area. */
+  onClick?: (click: PlotClick) => void;
+}
+
+/** Index of the first beat at or after `timeS`. */
+function firstBeatFrom(beats: Beat[], timeS: number): number {
+  let lo = 0;
+  let hi = beats.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (beats[mid].timeS < timeS) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+/** Draw the beat markers of the visible window on top of the traces. */
+function drawBeats(
+  plot: uPlot,
+  beats: Beat[],
+  front: Float64Array,
+  fs: number,
+  colors: PlotColors,
+): void {
+  const min = plot.scales.x.min;
+  const max = plot.scales.x.max;
+  if (min === undefined || max === undefined || beats.length === 0) return;
+
+  const first = firstBeatFrom(beats, min);
+  const end = firstBeatFrom(beats, max);
+  const visible = end - first;
+  if (visible === 0) return;
+
+  const ratio = devicePixelRatio;
+  const { ctx, bbox } = plot;
+  const crowded = bbox.width / visible < MIN_MARKER_SPACING_PX * ratio;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bbox.left, bbox.top, bbox.width, bbox.height);
+  ctx.clip();
+  ctx.lineWidth = 1.5 * ratio;
+  for (let i = first; i < end; i++) {
+    const beat = beats[i];
+    const x = plot.valToPos(beat.timeS, 'x', true);
+    ctx.strokeStyle = colors.beat;
+    if (crowded) {
+      // Zoomed far out: a tick along the top edge still shows where beats are and where they are missing.
+      ctx.beginPath();
+      ctx.moveTo(x, bbox.top);
+      ctx.lineTo(x, bbox.top + 6 * ratio);
+      ctx.stroke();
+      continue;
+    }
+    const sample = Math.min(front.length - 1, Math.max(0, Math.round(beat.timeS * fs)));
+    const y = plot.valToPos(front[sample], 'y', true);
+    ctx.beginPath();
+    ctx.arc(x, y, MARKER_RADIUS_PX * ratio, 0, 2 * Math.PI);
+    // Beats added by hand are drawn hollow so they can be told apart from detections.
+    ctx.fillStyle = beat.source === 'manual' ? colors.card : colors.beat;
+    ctx.fill();
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 /**
@@ -42,10 +120,21 @@ interface SignalPlotProps {
  * about two points per pixel. uPlot therefore never holds more than a few
  * thousand points, however long the recording is.
  */
-export function SignalPlot({ traces, fs, units }: SignalPlotProps) {
+export function SignalPlot({ traces, fs, units, beats, onClick }: SignalPlotProps) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const plotRef = useRef<uPlot | null>(null);
   const theme = useThemeStore((state) => state.theme);
   const [hover, setHover] = useState<Hover | null>(null);
+
+  // Beats and the click handler change often (every edit). They are read through
+  // refs so that such changes repaint the plot instead of rebuilding it.
+  const beatsRef = useRef(beats);
+  const onClickRef = useRef(onClick);
+  useEffect(() => {
+    beatsRef.current = beats;
+    onClickRef.current = onClick;
+    plotRef.current?.redraw(false);
+  }, [beats, onClick]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -101,11 +190,13 @@ export function SignalPlot({ traces, fs, units }: SignalPlotProps) {
               else setHover({ time: index / fs, value: front[index] });
             },
           ],
+          draw: [(u) => drawBeats(u, beatsRef.current, front, fs, colors)],
         },
       },
       [[], ...traces.map(() => [])],
       host,
     );
+    plotRef.current = plot;
 
     const draw = () => {
       const { min, max } = useViewStore.getState();
@@ -144,20 +235,34 @@ export function SignalPlot({ traces, fs, units }: SignalPlotProps) {
     draw();
 
     const over = plot.over;
-    let drag: { x: number; min: number; max: number } | null = null;
+    let drag: { x: number; min: number; max: number; moved: boolean } | null = null;
 
     const onPointerDown = (event: PointerEvent) => {
       if (event.button !== 0) return;
       const { min, max } = useViewStore.getState();
-      drag = { x: event.clientX, min, max };
+      drag = { x: event.clientX, min, max, moved: false };
       over.setPointerCapture(event.pointerId);
     };
     const onPointerMove = (event: PointerEvent) => {
       if (!drag) return;
-      const shift = ((event.clientX - drag.x) / over.clientWidth) * (drag.max - drag.min);
+      const distance = event.clientX - drag.x;
+      if (Math.abs(distance) > CLICK_SLOP_PX) drag.moved = true;
+      if (!drag.moved) return;
+      const shift = (distance / over.clientWidth) * (drag.max - drag.min);
       useViewStore.getState().setView(drag.min - shift, drag.max - shift);
     };
-    const endDrag = () => {
+    const onPointerUp = (event: PointerEvent) => {
+      if (drag && !drag.moved) {
+        const rect = over.getBoundingClientRect();
+        const secondsPerPixel = (drag.max - drag.min) / rect.width;
+        onClickRef.current?.({
+          timeS: drag.min + (event.clientX - rect.left) * secondsPerPixel,
+          secondsPerPixel,
+        });
+      }
+      drag = null;
+    };
+    const cancelDrag = () => {
       drag = null;
     };
     const onWheel = (event: WheelEvent) => {
@@ -175,14 +280,15 @@ export function SignalPlot({ traces, fs, units }: SignalPlotProps) {
 
     over.addEventListener('pointerdown', onPointerDown);
     over.addEventListener('pointermove', onPointerMove);
-    over.addEventListener('pointerup', endDrag);
-    over.addEventListener('pointercancel', endDrag);
+    over.addEventListener('pointerup', onPointerUp);
+    over.addEventListener('pointercancel', cancelDrag);
     over.addEventListener('wheel', onWheel, { passive: false });
 
     return () => {
       cancelAnimationFrame(frame);
       unsubscribe();
       resizeObserver.disconnect();
+      plotRef.current = null;
       plot.destroy(); // also removes the listeners attached to its elements
     };
     // The theme is a dependency because canvas colors are fixed when the plot is created.
@@ -200,7 +306,7 @@ export function SignalPlot({ traces, fs, units }: SignalPlotProps) {
       '0': () => view.reset(),
     };
     const action = actions[event.key];
-    if (!action) return;
+    if (!action || event.ctrlKey || event.metaKey) return;
     event.preventDefault();
     action();
   };

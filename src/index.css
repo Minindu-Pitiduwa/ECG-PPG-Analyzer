@@ -67,6 +67,7 @@
   --color-warning-bg: var(--warning-bg);
   --color-warning-fg: var(--warning-fg);
   --color-signal: var(--signal);
+  --color-beat: var(--beat);
 }
 
 @layer base {
@@ -104,4 +105,9 @@
 }
 .uplot .u-over:active {
   cursor: grabbing;
+}
+
+/* While editing beats, a click adds or removes a marker instead of starting a pan. */
+.editing-beats .uplot .u-over {
+  cursor: crosshair;
 }

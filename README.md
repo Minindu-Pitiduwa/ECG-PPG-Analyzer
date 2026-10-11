@@ -14,7 +14,7 @@ complete.
 | ----- | ------------------------------------------------------------- | ----- |
 | 1     | Project setup, CI, sample and CSV loading, zoomable plot      | Done  |
 | 2     | Filters, verified against SciPy                               | Done  |
-| 3     | Pan–Tompkins and PPG beat detection, beat editing, heart rate |       |
+| 3     | Pan–Tompkins and PPG beat detection, beat editing, heart rate | Done  |
 | 4     | Heart rate variability, ectopic handling, signal quality      |       |
 | 5     | Rhythm flags, noise lab                                       |       |
 | 6     | WFDB import, PDF/CSV/JSON export                              |       |
@@ -58,10 +58,24 @@ public/samples/  bundled sample recordings
 ## Reference data for the filter tests
 
 The filter tests compare the TypeScript output with SciPy's, stored in
-`tests/fixtures/filters.json`. To regenerate it (after the Python setup below):
+`tests/fixtures/filters.json`. The detector tests use the MIT-BIH beat
+annotations and the BIDMC monitor's pulse rate for the bundled samples, stored
+in `tests/fixtures/sample_refs.json`. To regenerate them (after the Python
+setup below):
 
 ```bash
 validation/.venv/bin/python validation/gen_fixtures.py
+validation/.venv/bin/python validation/gen_sample_refs.py
+```
+
+## Detector benchmark (preview)
+
+The Pan–Tompkins detector can already be scored on all 48 MIT-BIH Arrhythmia
+records. The full write-up comes in phase 7.
+
+```bash
+validation/.venv/bin/python validation/benchmark/export_mitdb.py   # downloads ~100 MB once
+npx tsx validation/benchmark/run_ts.ts
 ```
 
 ## Sample data

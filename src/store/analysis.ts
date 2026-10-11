@@ -18,11 +18,23 @@ interface AnalysisState {
   sos: Sos;
   /** Stages that could not be applied at this sampling rate. */
   skipped: string[];
+  /** Times of the automatically detected beats, in seconds. */
+  autoBeatTimesS: Float64Array;
+  /** Whether beats are marked at maxima (1) or minima (-1) of the filtered signal. */
+  polarity: 1 | -1;
   /** Why the current settings could not be applied, in plain language. */
   error: string | null;
 }
 
-const EMPTY: AnalysisState = { status: 'idle', filtered: null, sos: [], skipped: [], error: null };
+const EMPTY: AnalysisState = {
+  status: 'idle',
+  filtered: null,
+  sos: [],
+  skipped: [],
+  autoBeatTimesS: new Float64Array(0),
+  polarity: 1,
+  error: null,
+};
 
 export const useAnalysisStore = create<AnalysisState>(() => EMPTY);
 
@@ -47,10 +59,11 @@ async function analyze(): Promise<void> {
 
   useAnalysisStore.setState({ status: 'running', error: null });
   try {
-    const result = await runInWorker('preprocess', {
+    const result = await runInWorker('analyze', {
       samples: recording.samples,
       fs: recording.fs,
-      options,
+      kind: recording.kind,
+      options: { preprocess: options },
     });
     if (run !== latestRun) return;
     useAnalysisStore.setState({
@@ -58,6 +71,8 @@ async function analyze(): Promise<void> {
       filtered: result.filtered,
       sos: result.sos,
       skipped: result.skipped,
+      autoBeatTimesS: result.beatTimesS,
+      polarity: result.polarity,
       error: null,
     });
   } catch (cause) {
@@ -65,7 +80,7 @@ async function analyze(): Promise<void> {
     console.error(cause);
     useAnalysisStore.setState({
       status: 'error',
-      error: 'The signal could not be filtered with these settings.',
+      error: 'The signal could not be analyzed with these settings.',
     });
   }
 }

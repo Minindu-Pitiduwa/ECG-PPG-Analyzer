@@ -1,4 +1,5 @@
-import type { PreprocessOptions, PreprocessResult } from '@/dsp/filters/preprocess';
+import type { AnalysisOptions, AnalysisResult } from '@/dsp/pipeline';
+import type { SignalKind } from '@/dsp/types';
 import type { CsvColumns, CsvExtractOptions } from '@/io/csv';
 
 /** Every job the analysis worker can do, with its input and output. */
@@ -7,9 +8,9 @@ export interface WorkerApi {
     params: { text: string; options: CsvExtractOptions };
     result: CsvColumns;
   };
-  preprocess: {
-    params: { samples: Float64Array; fs: number; options: PreprocessOptions };
-    result: PreprocessResult;
+  analyze: {
+    params: { samples: Float64Array; fs: number; kind: SignalKind; options: AnalysisOptions };
+    result: AnalysisResult;
   };
 }
 

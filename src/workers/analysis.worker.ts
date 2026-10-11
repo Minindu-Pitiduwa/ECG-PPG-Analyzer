@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { preprocess } from '@/dsp/filters/preprocess';
+import { analyzeRecording } from '@/dsp/pipeline';
 import { extractCsvColumns } from '@/io/csv';
 import { ImportError } from '@/io/types';
 import type { WorkerApi, WorkerJob, WorkerRequest, WorkerResponse } from './protocol';
@@ -20,9 +20,12 @@ const handlers: { [Job in WorkerJob]: (params: WorkerApi[Job]['params']) => JobO
       transfer: [result.signal.buffer, ...(result.time ? [result.time.buffer] : [])],
     };
   },
-  preprocess: ({ samples, fs, options }) => {
-    const result = preprocess(samples, fs, options);
-    return { result, transfer: [result.filtered.buffer] };
+  analyze: ({ samples, fs, kind, options }) => {
+    const result = analyzeRecording(samples, fs, kind, options);
+    return {
+      result,
+      transfer: [result.filtered.buffer, result.peaks.buffer, result.beatTimesS.buffer],
+    };
   },
 };
 
@@ -31,8 +34,8 @@ function run(request: WorkerRequest): JobOutput<WorkerJob> {
   switch (request.job) {
     case 'extractCsv':
       return handlers.extractCsv(request.params);
-    case 'preprocess':
-      return handlers.preprocess(request.params);
+    case 'analyze':
+      return handlers.analyze(request.params);
   }
 }
 
