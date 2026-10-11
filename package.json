@@ -15,7 +15,9 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "benchmark": "tsx validation/benchmark/run_ts.ts --external validation/benchmark/results/neurokit_peaks.json --ablation --out validation/benchmark/results",
+    "docs:capture": "vite build && node scripts/capture.mjs"
   },
   "dependencies": {
     "class-variance-authority": "^0.7.1",

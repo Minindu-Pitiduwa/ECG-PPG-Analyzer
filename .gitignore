@@ -10,3 +10,4 @@ playwright-report
 validation/.venv
 validation/data
 __pycache__
+validation/benchmark/results/neurokit_peaks.json

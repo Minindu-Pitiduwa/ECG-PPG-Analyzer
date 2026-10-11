@@ -62,7 +62,8 @@ def main() -> None:
         annotation = wfdb.rdann(str(RAW_DIR / name), "atr")
         adc = record.d_signal[:, 0]
         adc.astype("<i2").tofile(OUT_DIR / f"{name}.i16")
-        beats = [int(s) for s, sym in zip(annotation.sample, annotation.symbol) if sym in BEAT_SYMBOLS]
+        beat_pairs = [(int(s), sym) for s, sym in zip(annotation.sample, annotation.symbol) if sym in BEAT_SYMBOLS]
+        beats = [sample for sample, _ in beat_pairs]
         # Rhythm changes are '+' annotations whose note names the rhythm that starts there, e.g. "(AFIB".
         rhythms = [
             {"sample": int(s), "rhythm": note.strip("\x00 ").lstrip("(")}
@@ -79,6 +80,8 @@ def main() -> None:
                 "lead": record.sig_name[0],
                 "paced": name in PACED_RECORDS,
                 "beats": beats,
+                # One annotation code per beat, e.g. N normal, V premature ventricular, / paced.
+                "symbols": "".join(symbol for _, symbol in beat_pairs),
                 "rhythms": rhythms,
             }
         )

@@ -14,7 +14,8 @@
     "record": "100",
     "startS": 0,
     "source": "MIT-BIH Arrhythmia Database v1.0.0 (Moody & Mark, 2001), https://doi.org/10.13026/C2F305",
-    "license": "Open Data Commons Attribution License v1.0"
+    "license": "Open Data Commons Attribution License v1.0",
+    "note": "This MIT-BIH recording was digitized from analog tape. The database documentation describes a tape-speed artifact at 0.167 Hz, which appears here as a sharp peak in the HF band. Do not read this recording's HF power or LF/HF ratio as physiology."
   },
   {
     "id": "ecg-ectopic",
@@ -31,7 +32,8 @@
     "record": "119",
     "startS": 0,
     "source": "MIT-BIH Arrhythmia Database v1.0.0 (Moody & Mark, 2001), https://doi.org/10.13026/C2F305",
-    "license": "Open Data Commons Attribution License v1.0"
+    "license": "Open Data Commons Attribution License v1.0",
+    "note": "This MIT-BIH recording was digitized from analog tape. The database documentation describes a tape-speed artifact at 0.167 Hz, which appears here as a sharp peak in the HF band. Do not read this recording's HF power or LF/HF ratio as physiology."
   },
   {
     "id": "ecg-noisy",
@@ -48,7 +50,8 @@
     "record": "105",
     "startS": 900,
     "source": "MIT-BIH Arrhythmia Database v1.0.0 (Moody & Mark, 2001), https://doi.org/10.13026/C2F305",
-    "license": "Open Data Commons Attribution License v1.0"
+    "license": "Open Data Commons Attribution License v1.0",
+    "note": "This MIT-BIH recording was digitized from analog tape. The database documentation describes a tape-speed artifact at 0.167 Hz, which appears here as a sharp peak in the HF band. Do not read this recording's HF power or LF/HF ratio as physiology."
   },
   {
     "id": "ppg-finger",
@@ -65,6 +68,7 @@
     "record": "bidmc01",
     "startS": 0,
     "source": "BIDMC PPG and Respiration Dataset v1.0.0 (Pimentel et al., 2017), https://doi.org/10.13026/C2208R",
-    "license": "Open Data Commons Attribution License v1.0"
+    "license": "Open Data Commons Attribution License v1.0",
+    "note": ""
   }
 ]

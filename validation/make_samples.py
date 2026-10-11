@@ -36,6 +36,7 @@ class SampleSpec:
     start_s: int
     duration_s: int
     source: str
+    note: str = ""  # shown to the user as a caution when the sample is loaded
 
 
 MITDB = "MIT-BIH Arrhythmia Database v1.0.0 (Moody & Mark, 2001), https://doi.org/10.13026/C2F305"
@@ -44,24 +45,33 @@ BIDMC = (
     "https://doi.org/10.13026/C2208R"
 )
 
+# The database documentation (mitdbdir/intro.htm, "Tape speed variations") describes periodic
+# artifacts from the tape machines, the largest at 0.167 Hz on tapes played back in real time,
+# and warns that they matter for heart rate variability studies.
+TAPE_NOTE = (
+    "This MIT-BIH recording was digitized from analog tape. The database documentation describes "
+    "a tape-speed artifact at 0.167 Hz, which appears here as a sharp peak in the HF band. "
+    "Do not read this recording's HF power or LF/HF ratio as physiology."
+)
+
 SPECS = [
     SampleSpec(
         "ecg-normal",
         "ECG: normal sinus rhythm",
         "MIT-BIH record 100, lead MLII. Clean signal with a steady rhythm.",
-        "ecg", "mitdb", "100", 0, 0, 300, MITDB,
+        "ecg", "mitdb", "100", 0, 0, 300, MITDB, TAPE_NOTE,
     ),
     SampleSpec(
         "ecg-ectopic",
         "ECG: frequent ectopic beats",
         "MIT-BIH record 119, lead MLII. Many premature ventricular beats.",
-        "ecg", "mitdb", "119", 0, 0, 300, MITDB,
+        "ecg", "mitdb", "119", 0, 0, 300, MITDB, TAPE_NOTE,
     ),
     SampleSpec(
         "ecg-noisy",
         "ECG: noisy recording",
         "MIT-BIH record 105, lead MLII. Baseline wander and muscle noise.",
-        "ecg", "mitdb", "105", 0, 900, 300, MITDB,
+        "ecg", "mitdb", "105", 0, 900, 300, MITDB, TAPE_NOTE,
     ),
     SampleSpec(
         "ppg-finger",
@@ -110,6 +120,7 @@ def build(spec: SampleSpec) -> dict:
         "startS": spec.start_s,
         "source": spec.source,
         "license": LICENSE,
+        "note": spec.note,
     }
 
 

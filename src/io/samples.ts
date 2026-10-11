@@ -18,6 +18,8 @@ export interface SampleInfo {
   startS: number;
   source: string;
   license: string;
+  /** A caution about this recording, shown when it is loaded. Empty when there is none. */
+  note: string;
 }
 
 const SAMPLES_URL = `${import.meta.env.BASE_URL}samples/`;
@@ -66,6 +68,6 @@ export async function loadSample(info: SampleInfo): Promise<Recording> {
     units: info.units,
     channel: info.channel,
     origin: info.source,
-    warnings: [],
+    warnings: info.note ? [info.note] : [],
   };
 }
