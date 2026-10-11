@@ -17,6 +17,8 @@ interface TrendPlotProps {
   durationS: number;
   yLabel: string;
   ariaLabel: string;
+  /** Optional flag per point; flagged points are drawn as dots in the warning color. */
+  flagged?: boolean[];
   /** Called with the time under the pointer when the plot is clicked. */
   onSelectTime?: (timeS: number) => void;
 }
@@ -31,6 +33,7 @@ export function TrendPlot({
   durationS,
   yLabel,
   ariaLabel,
+  flagged,
   onSelectTime,
 }: TrendPlotProps) {
   const hostRef = useRef<HTMLDivElement>(null);
@@ -73,9 +76,15 @@ export function TrendPlot({
             width: 1.25,
             points: { show: values.length <= MAX_POINTS_WITH_DOTS, size: 4, fill: colors.signal },
           },
+          // Dots only: the flagged points of the same series, drawn over the line.
+          {
+            stroke: colors.flagged,
+            width: 0,
+            points: { show: true, size: 5, fill: colors.flagged, stroke: colors.flagged },
+          },
         ],
       },
-      [timeS, values],
+      [timeS, values, Array.from(values, (value, i) => (flagged?.[i] ? value : null))],
       host,
     );
 
@@ -94,7 +103,7 @@ export function TrendPlot({
       resizeObserver.disconnect();
       plot.destroy();
     };
-  }, [timeS, values, durationS, yLabel, theme]);
+  }, [timeS, values, durationS, yLabel, flagged, theme]);
 
   return (
     <div

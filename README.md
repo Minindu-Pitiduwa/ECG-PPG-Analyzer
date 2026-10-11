@@ -15,7 +15,7 @@ complete.
 | 1     | Project setup, CI, sample and CSV loading, zoomable plot      | Done  |
 | 2     | Filters, verified against SciPy                               | Done  |
 | 3     | Pan–Tompkins and PPG beat detection, beat editing, heart rate | Done  |
-| 4     | Heart rate variability, ectopic handling, signal quality      |       |
+| 4     | Heart rate variability, ectopic handling, signal quality      | Done  |
 | 5     | Rhythm flags, noise lab                                       |       |
 | 6     | WFDB import, PDF/CSV/JSON export                              |       |
 | 7     | MIT-BIH benchmark, full README, deployment                    |       |
@@ -66,7 +66,11 @@ setup below):
 ```bash
 validation/.venv/bin/python validation/gen_fixtures.py
 validation/.venv/bin/python validation/gen_sample_refs.py
+validation/.venv/bin/python validation/gen_hrv_fixtures.py
 ```
+
+The HRV tests compare against NeuroKit2 (time domain, Poincaré) and SciPy
+(Lomb–Scargle, Welch), stored in `tests/fixtures/hrv.json`.
 
 ## Detector benchmark (preview)
 

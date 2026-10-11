@@ -68,6 +68,8 @@
   --color-warning-fg: var(--warning-fg);
   --color-signal: var(--signal);
   --color-beat: var(--beat);
+  --color-flagged: var(--flagged);
+  --color-low-quality: var(--low-quality);
 }
 
 @layer base {

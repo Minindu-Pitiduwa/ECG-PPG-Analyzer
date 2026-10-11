@@ -9,8 +9,10 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
+import { Tabs } from 'radix-ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { InfoTip } from '@/components/InfoTip';
+import { MetricCard } from '@/components/MetricCard';
 import { Minimap } from '@/components/plot/Minimap';
 import { SignalPlot, type PlotClick, type PlotTrace } from '@/components/plot/SignalPlot';
 import { TrendPlot } from '@/components/plot/TrendPlot';
@@ -18,14 +20,16 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { GLOSSARY } from '@/content/glossary';
 import { snapToPeak } from '@/dsp/detect/edits';
-import { beatIntervalsMs, heartRateSeries, heartRateStats } from '@/dsp/hrv/heartRate';
+import { heartRateSeries } from '@/dsp/hrv/heartRate';
 import type { Recording } from '@/io/types';
 import { cn } from '@/lib/cn';
 import { formatDuration } from '@/lib/format';
 import { useAnalysisStore } from '@/store/analysis';
-import { useBeatEditStore, useBeats } from '@/store/beats';
+import { useBeatEditStore } from '@/store/beats';
 import { useViewStore } from '@/store/view';
+import { HrvDetails } from './HrvDetails';
 import { SettingsPanel } from './SettingsPanel';
+import { useAnalysis } from './useAnalysis';
 
 const ZOOM_STEP = 0.5;
 /** Tailwind's `lg` breakpoint: from here up there is room for the settings beside the plot. */
@@ -41,29 +45,11 @@ const VIEW_MODES: { id: ViewMode; label: string }[] = [
   { id: 'both', label: 'Both' },
 ];
 
-interface MetricCardProps {
-  label: string;
-  value: string;
-  unit?: string;
-  tip: string;
-}
-
-function MetricCard({ label, value, unit, tip }: MetricCardProps) {
-  return (
-    <Card className="p-4">
-      <div className="text-muted-foreground flex items-center justify-between text-xs">
-        <span>{label}</span>
-        <InfoTip label={`About ${label.toLowerCase()}`}>{tip}</InfoTip>
-      </div>
-      <p className="mt-1 text-2xl font-semibold tabular-nums">
-        {value}
-        {unit && <span className="text-muted-foreground ml-1 text-sm font-normal">{unit}</span>}
-      </p>
-    </Card>
-  );
-}
-
 const formatBpm = (bpm: number) => (Number.isFinite(bpm) ? bpm.toFixed(0) : '–');
+const formatMs = (ms: number) => (Number.isFinite(ms) ? ms.toFixed(0) : '–');
+
+const TAB_CLASS =
+  'text-muted-foreground data-[state=active]:border-primary data-[state=active]:text-foreground -mb-px border-b-2 border-transparent px-3 py-2 text-sm data-[state=active]:font-medium';
 
 interface AnalyzeViewProps {
   recording: Recording;
@@ -78,7 +64,8 @@ export function AnalyzeView({ recording }: AnalyzeViewProps) {
   const filtered = useAnalysisStore((state) => state.filtered);
   const polarity = useAnalysisStore((state) => state.polarity);
   const analyzing = useAnalysisStore((state) => state.status === 'running');
-  const beats = useBeats();
+  const analysis = useAnalysis(recording);
+  const { beats, beatTimesS, heartRate, timeDomain, exclusions } = analysis;
   const editCount = useBeatEditStore((state) => state.edits.length);
   const undo = useBeatEditStore((state) => state.undo);
   const [viewMode, setViewMode] = useState<ViewMode>('filtered');
@@ -93,9 +80,12 @@ export function AnalyzeView({ recording }: AnalyzeViewProps) {
     return viewMode === 'both' ? [raw, clean] : [clean];
   }, [samples, filtered, viewMode]);
 
-  const beatTimes = useMemo(() => beats.map((beat) => beat.timeS), [beats]);
-  const heartRate = useMemo(() => heartRateStats(beatIntervalsMs(beatTimes)), [beatTimes]);
-  const trend = useMemo(() => heartRateSeries(beatTimes), [beatTimes]);
+  const trend = useMemo(() => heartRateSeries(beatTimesS), [beatTimesS]);
+  const intervalFlags = useMemo(
+    () => analysis.labels.map((label) => label !== 'normal'),
+    [analysis.labels],
+  );
+  const intervalTimes = trend.timeS;
   const rateName = kind === 'ecg' ? 'heart rate' : 'pulse rate';
 
   const onPlotClick = useCallback(
@@ -263,8 +253,20 @@ export function AnalyzeView({ recording }: AnalyzeViewProps) {
                 {viewMode === 'raw' ? 'Raw' : 'Filtered'}
               </span>
               <span className="flex items-center gap-1">
-                <span className="bg-beat size-2 rounded-full" aria-hidden /> Detected beat
+                <span className="bg-beat size-2 rounded-full" aria-hidden /> Beat
               </span>
+              {beats.some((beat) => beat.flagged) && (
+                <span className="flex items-center gap-1">
+                  <span className="bg-flagged size-2 rounded-full" aria-hidden /> Early or
+                  implausible beat
+                </span>
+              )}
+              {analysis.lowQualitySpans.length > 0 && (
+                <span className="flex items-center gap-1">
+                  <span className="bg-low-quality/40 h-3 w-4 rounded-sm" aria-hidden /> Low signal
+                  quality
+                </span>
+              )}
               {editCount > 0 && (
                 <span className="flex items-center gap-1">
                   <span className="border-beat size-2 rounded-full border-2" aria-hidden /> Added by
@@ -277,59 +279,126 @@ export function AnalyzeView({ recording }: AnalyzeViewProps) {
                 </span>
               )}
             </div>
-            <SignalPlot traces={traces} fs={fs} units={units} beats={beats} onClick={onPlotClick} />
+            <SignalPlot
+              traces={traces}
+              fs={fs}
+              units={units}
+              beats={beats}
+              lowQuality={analysis.lowQualitySpans}
+              onClick={onPlotClick}
+            />
             <Minimap samples={traces[traces.length - 1].samples} fs={fs} />
           </Card>
 
-          <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
             <MetricCard
               label={`Mean ${rateName}`}
               value={formatBpm(heartRate.meanBpm)}
               unit="bpm"
+              detail={
+                Number.isFinite(heartRate.minBpm)
+                  ? `Range ${formatBpm(heartRate.minBpm)}–${formatBpm(heartRate.maxBpm)} bpm`
+                  : undefined
+              }
               tip={GLOSSARY.meanHeartRate}
             />
             <MetricCard
-              label={`Lowest ${rateName}`}
-              value={formatBpm(heartRate.minBpm)}
-              unit="bpm"
-              tip={GLOSSARY.minHeartRate}
+              label="SDNN"
+              value={formatMs(timeDomain.sdnn)}
+              unit="ms"
+              tip={GLOSSARY.sdnn}
             />
             <MetricCard
-              label={`Highest ${rateName}`}
-              value={formatBpm(heartRate.maxBpm)}
-              unit="bpm"
-              tip={GLOSSARY.maxHeartRate}
+              label="RMSSD"
+              value={formatMs(timeDomain.rmssd)}
+              unit="ms"
+              tip={GLOSSARY.rmssd}
+            />
+            <MetricCard
+              label="Signal quality"
+              value={
+                Number.isFinite(analysis.goodFraction)
+                  ? (100 * analysis.goodFraction).toFixed(0)
+                  : '–'
+              }
+              unit="% good"
+              detail={
+                analysis.lowQualitySpans.length > 0
+                  ? `${analysis.lowQualitySpans.length} of ${analysis.quality.length} segments low`
+                  : undefined
+              }
+              tip={GLOSSARY.signalQuality}
             />
             <MetricCard
               label="Beats"
               value={beats.length.toLocaleString('en-US')}
-              tip={GLOSSARY.beatCount}
+              detail={`${exclusions.excluded} interval${exclusions.excluded === 1 ? '' : 's'} excluded`}
+              tip={`${GLOSSARY.beatCount} ${GLOSSARY.excluded}`}
             />
           </div>
 
-          <Card className="space-y-2 p-3 sm:p-4">
-            <div className="flex items-center gap-1">
-              <h2 className="text-sm font-medium">
-                {kind === 'ecg' ? 'Heart rate' : 'Pulse rate'} over time
-              </h2>
-              <InfoTip label={`About the ${rateName} trend`}>{GLOSSARY.heartRateTrend}</InfoTip>
-            </div>
-            {trend.bpm.length >= 2 ? (
-              <TrendPlot
-                timeS={trend.timeS}
-                values={trend.bpm}
-                durationS={durationS}
-                yLabel="bpm"
-                ariaLabel={`${rateName} in beats per minute over the recording`}
-                onSelectTime={jumpTo}
-              />
-            ) : (
-              <p className="text-muted-foreground py-6 text-center text-sm">
-                {analyzing
-                  ? 'Looking for beats…'
-                  : 'Not enough beats were found to draw a trend. Check the filter settings, or add beats by hand.'}
-              </p>
-            )}
+          <Card className="p-3 sm:p-4">
+            <Tabs.Root defaultValue="rate">
+              <Tabs.List className="mb-4 flex border-b" aria-label="Analysis details">
+                <Tabs.Trigger value="rate" className={TAB_CLASS}>
+                  {kind === 'ecg' ? 'Heart rate' : 'Pulse rate'}
+                </Tabs.Trigger>
+                <Tabs.Trigger value="hrv" className={TAB_CLASS}>
+                  HRV details
+                </Tabs.Trigger>
+              </Tabs.List>
+
+              <Tabs.Content value="rate" className="space-y-5">
+                {trend.bpm.length >= 2 ? (
+                  <>
+                    <section className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <h3 className="text-sm font-medium">
+                          {kind === 'ecg' ? 'Heart rate' : 'Pulse rate'} over time
+                        </h3>
+                        <InfoTip label={`About the ${rateName} trend`}>
+                          {GLOSSARY.heartRateTrend}
+                        </InfoTip>
+                      </div>
+                      <TrendPlot
+                        timeS={intervalTimes}
+                        values={trend.bpm}
+                        durationS={durationS}
+                        yLabel="bpm"
+                        ariaLabel={`${rateName} in beats per minute over the recording`}
+                        flagged={intervalFlags}
+                        onSelectTime={jumpTo}
+                      />
+                    </section>
+                    <section className="space-y-1">
+                      <div className="flex items-center gap-1">
+                        <h3 className="text-sm font-medium">Beat-to-beat intervals (tachogram)</h3>
+                        <InfoTip label="About the tachogram">{GLOSSARY.tachogram}</InfoTip>
+                      </div>
+                      <TrendPlot
+                        timeS={intervalTimes}
+                        values={analysis.intervalsMs}
+                        durationS={durationS}
+                        yLabel="ms"
+                        ariaLabel="Beat-to-beat intervals in milliseconds over the recording"
+                        flagged={intervalFlags}
+                        onSelectTime={jumpTo}
+                      />
+                    </section>
+                  </>
+                ) : (
+                  <p className="text-muted-foreground py-6 text-center text-sm">
+                    {analyzing
+                      ? 'Looking for beats…'
+                      : 'Not enough beats were found to draw a trend. Check the filter settings, or add beats by hand.'}
+                  </p>
+                )}
+              </Tabs.Content>
+
+              <Tabs.Content value="hrv">
+                <HrvDetails analysis={analysis} kind={kind} />
+              </Tabs.Content>
+            </Tabs.Root>
           </Card>
         </div>
 

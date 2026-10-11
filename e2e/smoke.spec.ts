@@ -91,7 +91,7 @@ test('beats are detected, and can be corrected by hand with undo', async ({ page
   const beatCount = (count: string) => page.getByText(count, { exact: true });
   await expect(beatCount('371')).toBeVisible();
   await expect(page.getByText(/^74\s*bpm$/)).toBeVisible(); // mean heart rate
-  await expect(page.getByTestId('trend-plot').locator('canvas')).toBeVisible();
+  await expect(page.getByTestId('trend-plot').first().locator('canvas')).toBeVisible();
 
   // The opening view shows 0 to 10 s; 4.6 s lies between two beats of this recording.
   const plotArea = page.getByTestId('signal-plot').locator('.u-over');
@@ -119,4 +119,51 @@ test('beats are detected, and can be corrected by hand with undo', async ({ page
   await expect(beatCount('372')).toBeVisible();
   await page.keyboard.press('ControlOrMeta+z');
   await expect(beatCount('371')).toBeVisible();
+});
+
+test('variability metrics, excluded intervals and signal quality are reported', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Try a sample ECG' }).click();
+
+  await expect(page.getByText(/^28\s*ms$/).first()).toBeVisible(); // SDNN
+  await expect(page.getByText(/^100\s*% good$/)).toBeVisible();
+  await expect(page.getByText('6 intervals excluded')).toBeVisible();
+  await expect(page.getByTestId('trend-plot')).toHaveCount(2); // heart rate and tachogram
+
+  await page.getByRole('tab', { name: 'HRV details' }).click();
+  await expect(page.getByText('Based on 364 normal intervals.')).toBeVisible();
+  await expect(page.getByRole('img', { name: /Poincaré plot/ })).toBeVisible();
+  await expect(page.getByRole('img', { name: /power spectrum/ })).toBeVisible();
+  // Just under five minutes of usable beats: LF and HF are shown, VLF is withheld with a reason.
+  await expect(page.getByText('VLF power is hidden')).toBeVisible();
+  await page.getByLabel('Method', { exact: true }).selectOption('welch');
+  await expect(page.getByRole('img', { name: /power spectrum/ })).toBeVisible();
+});
+
+test('the disturbed stretch of the PPG sample is marked as low quality', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Try a sample PPG' }).click();
+  await expect(page.getByText('1 of 30 segments low')).toBeVisible();
+  await expect(page.getByText('Low signal quality')).toBeVisible();
+  await page.getByRole('tab', { name: 'HRV details' }).click();
+  await expect(page.getByText(/pulse rate variability/)).toBeVisible();
+});
+
+test('a recording too short for frequency analysis says why', async ({ page }) => {
+  const rows = ['time_ms,ecg'];
+  for (let i = 0; i < 15000; i++) {
+    const phase = i % 200; // one beat every 800 ms at 250 Hz
+    rows.push(`${i * 4},${phase < 3 ? 1 : phase > 60 && phase < 100 ? 0.15 : 0}`);
+  }
+  await page.goto('/');
+  await page.locator('input[type=file]').setInputFiles({
+    name: 'one-minute.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(rows.join('\n')),
+  });
+  await page.getByRole('button', { name: 'Import' }).click();
+  await page.getByRole('tab', { name: 'HRV details' }).click();
+  await expect(page.getByText(/Frequency analysis needs at least 2 minutes/)).toBeVisible();
 });

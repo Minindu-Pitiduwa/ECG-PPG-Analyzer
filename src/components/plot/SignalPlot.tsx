@@ -32,6 +32,16 @@ export interface PlotTrace {
   color: 'signal' | 'raw';
 }
 
+/** A beat as drawn: flagged beats (ectopic or artifact) get the warning color. */
+export interface PlotBeat extends Beat {
+  flagged: boolean;
+}
+
+export interface TimeSpan {
+  startS: number;
+  endS: number;
+}
+
 export interface PlotClick {
   timeS: number;
   /** Seconds covered by one screen pixel at the current zoom, to judge what a click was aimed at. */
@@ -44,13 +54,15 @@ interface SignalPlotProps {
   fs: number;
   units: SignalUnits;
   /** Beats to mark on the front trace, in time order. */
-  beats: Beat[];
+  beats: PlotBeat[];
+  /** Stretches of low signal quality, shaded grey. */
+  lowQuality: TimeSpan[];
   /** Called for a click (not a drag) on the plot area. */
   onClick?: (click: PlotClick) => void;
 }
 
 /** Index of the first beat at or after `timeS`. */
-function firstBeatFrom(beats: Beat[], timeS: number): number {
+function firstBeatFrom(beats: PlotBeat[], timeS: number): number {
   let lo = 0;
   let hi = beats.length;
   while (lo < hi) {
@@ -61,10 +73,28 @@ function firstBeatFrom(beats: Beat[], timeS: number): number {
   return lo;
 }
 
+/** Shade the low-quality stretches that overlap the visible window. */
+function drawLowQuality(plot: uPlot, spans: TimeSpan[], colors: PlotColors): void {
+  const min = plot.scales.x.min;
+  const max = plot.scales.x.max;
+  if (min === undefined || max === undefined) return;
+  const { ctx, bbox } = plot;
+  ctx.save();
+  ctx.fillStyle = colors.lowQuality;
+  ctx.globalAlpha = 0.22;
+  for (const span of spans) {
+    if (span.endS <= min || span.startS >= max) continue;
+    const left = plot.valToPos(Math.max(span.startS, min), 'x', true);
+    const right = plot.valToPos(Math.min(span.endS, max), 'x', true);
+    ctx.fillRect(left, bbox.top, right - left, bbox.height);
+  }
+  ctx.restore();
+}
+
 /** Draw the beat markers of the visible window on top of the traces. */
 function drawBeats(
   plot: uPlot,
-  beats: Beat[],
+  beats: PlotBeat[],
   front: Float64Array,
   fs: number,
   colors: PlotColors,
@@ -90,7 +120,8 @@ function drawBeats(
   for (let i = first; i < end; i++) {
     const beat = beats[i];
     const x = plot.valToPos(beat.timeS, 'x', true);
-    ctx.strokeStyle = colors.beat;
+    const color = beat.flagged ? colors.flagged : colors.beat;
+    ctx.strokeStyle = color;
     if (crowded) {
       // Zoomed far out: a tick along the top edge still shows where beats are and where they are missing.
       ctx.beginPath();
@@ -104,7 +135,7 @@ function drawBeats(
     ctx.beginPath();
     ctx.arc(x, y, MARKER_RADIUS_PX * ratio, 0, 2 * Math.PI);
     // Beats added by hand are drawn hollow so they can be told apart from detections.
-    ctx.fillStyle = beat.source === 'manual' ? colors.card : colors.beat;
+    ctx.fillStyle = beat.source === 'manual' ? colors.card : color;
     ctx.fill();
     ctx.stroke();
   }
@@ -120,7 +151,7 @@ function drawBeats(
  * about two points per pixel. uPlot therefore never holds more than a few
  * thousand points, however long the recording is.
  */
-export function SignalPlot({ traces, fs, units, beats, onClick }: SignalPlotProps) {
+export function SignalPlot({ traces, fs, units, beats, lowQuality, onClick }: SignalPlotProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const plotRef = useRef<uPlot | null>(null);
   const theme = useThemeStore((state) => state.theme);
@@ -129,12 +160,14 @@ export function SignalPlot({ traces, fs, units, beats, onClick }: SignalPlotProp
   // Beats and the click handler change often (every edit). They are read through
   // refs so that such changes repaint the plot instead of rebuilding it.
   const beatsRef = useRef(beats);
+  const lowQualityRef = useRef(lowQuality);
   const onClickRef = useRef(onClick);
   useEffect(() => {
     beatsRef.current = beats;
+    lowQualityRef.current = lowQuality;
     onClickRef.current = onClick;
     plotRef.current?.redraw(false);
-  }, [beats, onClick]);
+  }, [beats, lowQuality, onClick]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -190,7 +223,12 @@ export function SignalPlot({ traces, fs, units, beats, onClick }: SignalPlotProp
               else setHover({ time: index / fs, value: front[index] });
             },
           ],
-          draw: [(u) => drawBeats(u, beatsRef.current, front, fs, colors)],
+          draw: [
+            (u) => {
+              drawLowQuality(u, lowQualityRef.current, colors);
+              drawBeats(u, beatsRef.current, front, fs, colors);
+            },
+          ],
         },
       },
       [[], ...traces.map(() => [])],

@@ -2,6 +2,8 @@ export interface PlotColors {
   signal: string;
   raw: string;
   beat: string;
+  flagged: string;
+  lowQuality: string;
   card: string;
   grid: string;
   text: string;
@@ -15,6 +17,8 @@ export function readPlotColors(): PlotColors {
     signal: read('--signal'),
     raw: read('--raw'),
     beat: read('--beat'),
+    flagged: read('--flagged'),
+    lowQuality: read('--low-quality'),
     card: read('--card'),
     grid: read('--grid'),
     text: read('--muted-foreground'),
